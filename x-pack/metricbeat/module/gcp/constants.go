@@ -27,7 +27,7 @@ const (
 	ServiceCloudSQL       = "cloudsql"
 )
 
-//Paths within the GCP monitoring.TimeSeries response, if converted to JSON, where you can find each ECS field required for the output event
+// Paths within the GCP monitoring.TimeSeries response, if converted to JSON, where you can find each ECS field required for the output event
 const (
 	TimeSeriesResponsePathForECSAvailabilityZone = "zone"
 	TimeSeriesResponsePathForECSAccountID        = "project_id"
@@ -76,6 +76,27 @@ const (
 	LabelUser     = "user"
 	LabelMetadata = "metadata"
 )
+
+func GetServiceLabel() map[string]string {
+	return map[string]string{
+		ServiceCompute:  "resource.label.zone",
+		ServiceCloudSQL: "resource.label.region",
+	}
+}
+
+const (
+	ServiceRegional = "regional"
+	ServiceZonal    = "zonal"
+	ServiceGlobal   = "global"
+)
+
+func GetGCPServicesType() map[string]string {
+	return map[string]string{
+		ServiceCompute:   ServiceRegional,
+		ServiceGKE:       ServiceRegional,
+		ServiceFirestore: ServiceGlobal,
+	}
+}
 
 const (
 	DefaultResourceLabelZone      = "resource.label.zone"
