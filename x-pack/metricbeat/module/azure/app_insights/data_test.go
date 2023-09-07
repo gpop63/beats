@@ -6,6 +6,7 @@ package app_insights
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/appinsights/v1/insights"
 	"github.com/Azure/go-autorest/autorest/date"
@@ -13,6 +14,115 @@ import (
 
 	"github.com/elastic/elastic-agent-libs/mapstr"
 )
+
+func TestGroupByDimensions(t *testing.T) {
+	start := &date.Time{Time: time.Now()}
+	end := &date.Time{Time: time.Now()}
+
+	v := []MetricValue{
+		{
+			SegmentName: map[string]string{},
+			Value:       map[string]interface{}{},
+			Segments: []MetricValue{
+				{
+					SegmentName: map[string]string{},
+					Value:       map[string]interface{}{},
+					Segments: []MetricValue{
+						{
+							SegmentName: map[string]string{
+								"request_url_host": "",
+							},
+							Value: map[string]interface{}{
+								"users_count.unique": 44,
+							},
+							Segments: nil,
+							Interval: "",
+							Start:    nil,
+							End:      nil,
+						},
+					},
+					Interval: "",
+					Start:    nil,
+					End:      nil,
+				},
+			},
+			Interval: "P5M",
+			Start:    start,
+			End:      start,
+		},
+		{
+			SegmentName: map[string]string{},
+			Value:       map[string]interface{}{},
+			Segments: []MetricValue{
+				{
+					SegmentName: map[string]string{},
+					Value:       map[string]interface{}{},
+					Segments: []MetricValue{
+						{
+							SegmentName: map[string]string{
+								"request_url_host": "",
+							},
+							Value: map[string]interface{}{
+								"sessions_count.unique": 44,
+							},
+							Segments: nil,
+							Interval: "",
+							Start:    nil,
+							End:      nil,
+						},
+					},
+					Interval: "",
+					Start:    nil,
+					End:      nil,
+				},
+			},
+			Interval: "P5M",
+			Start:    start,
+			End:      end,
+		},
+		{
+			SegmentName: map[string]string{},
+			Value:       map[string]interface{}{},
+			Segments: []MetricValue{
+				{
+					SegmentName: map[string]string{},
+					Value:       map[string]interface{}{},
+					Segments: []MetricValue{
+						{
+							SegmentName: map[string]string{
+								"request_url_host": "localhost",
+							},
+							Value: map[string]interface{}{
+								"sessions_count.unique": 44,
+							},
+							Segments: nil,
+							Interval: "",
+							Start:    nil,
+							End:      nil,
+						},
+					},
+					Interval: "",
+					Start:    nil,
+					End:      nil,
+				},
+			},
+			Interval: "P5M",
+			Start:    start,
+			End:      end,
+		},
+	}
+
+	dimensionsGrouped, _ := groupMetricsByDimension(v)
+	assert.Len(t, dimensionsGrouped, 2)
+
+	group1, ok := dimensionsGrouped["request_url_host"]
+	assert.True(t, ok)
+	assert.Len(t, group1, 2)
+
+	group2, ok := dimensionsGrouped["request_url_hostlocalhost"]
+	assert.True(t, ok)
+	assert.Len(t, group2, 1)
+}
 
 func TestEventMapping(t *testing.T) {
 	startDate := date.Time{}
