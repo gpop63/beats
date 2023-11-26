@@ -7,7 +7,9 @@ package app_insights
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/appinsights/v1/insights"
 	"github.com/Azure/go-autorest/autorest/date"
@@ -116,66 +118,175 @@ func isSegment(metric string) bool {
 	return false
 }
 
+type metricTimeKey struct {
+	Start time.Time
+	End   time.Time
+}
+
+func newMetricTimeKey(start, end time.Time) metricTimeKey {
+	return metricTimeKey{Start: start, End: end}
+}
+
 func EventsMapping(metricValues insights.ListMetricsResultsItem, applicationId string, namespace string) []mb.Event {
 	var events []mb.Event
 	if metricValues.Value == nil {
 		return events
 	}
-	groupedAddProp := make(map[string][]MetricValue)
+
 	mValues := mapMetricValues(metricValues)
 
-	var segValues []MetricValue
-	for _, mv := range mValues {
-		if len(mv.Segments) == 0 {
-			groupedAddProp[mv.Interval] = append(groupedAddProp[mv.Interval], mv)
-		} else {
-			segValues = append(segValues, mv)
-		}
-	}
+	groupedByDimensions := groupMetricsByDimension(mValues)
 
-	for _, val := range groupedAddProp {
-		event := createNoSegEvent(val, applicationId, namespace)
+	for _, group := range groupedByDimensions {
+		event := createGroupEvent(group, newMetricTimeKey(group[0].Start.Time, group[0].End.Time), applicationId, namespace)
+
+		// Only add events that have metric values
 		if len(event.MetricSetFields) > 0 {
 			events = append(events, event)
-		}
-	}
-	for _, val := range segValues {
-		for _, seg := range val.Segments {
-			lastSeg := getValue(seg)
-			for _, ls := range lastSeg {
-				events = append(events, createSegEvent(val, ls, applicationId, namespace))
-			}
 		}
 	}
 	return events
 }
 
-func getValue(metric MetricValue) []MetricValue {
-	var values []MetricValue
-	if metric.Segments == nil {
-		return []MetricValue{metric}
+// groupMetricsByDimension groups the given metrics by their dimension keys.
+func groupMetricsByDimension(metrics []MetricValue) map[string][]MetricValue {
+	keys := make(map[string][]MetricValue)
+
+	var stack []MetricValue
+
+	// Initialize the stack with the original metrics
+	stack = append(stack, metrics...)
+
+	// Use the first metric's start and end times as the default
+	firstStart := metrics[0].Start
+	firstEnd := metrics[0].End
+
+	// Process the stack until it's empty
+	for len(stack) > 0 {
+		// Pop the last element from the stack
+		metric := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		// If the metric has a start and end time then we can use it as the default
+		// otherwise we will use the first metric's start and end time
+		if metric.End != nil && !metric.End.IsZero() {
+			firstEnd = metric.End
+		}
+
+		if metric.Start != nil && !metric.Start.IsZero() {
+			firstStart = metric.Start
+		}
+
+		// Alphabetically adding segment names
+		sortedSegmentsKey := getSortedKeys(metric.SegmentName)
+
+		// Create a dimension key using the first metric's start and end times and the sorted segment names
+		dimensionKey := createDimensionKey(firstStart.Unix(), firstEnd.Unix(), sortedSegmentsKey)
+
+		// this means we got a segment which is not the segment that has the actual metric values
+		// lets keep looping until we get the segment that has the actual metric values
+		if len(metric.Segments) > 0 {
+			for _, segment := range metric.Segments {
+				// alphabetically adding metric names
+				segmentKey := getSortedKeys(segment.SegmentName)
+				if segmentKey != "" {
+					// if the segment has a segment name then we can combine the dimension key with the segment key
+					combinedKey := dimensionKey + segmentKey
+
+					newMetric := MetricValue{
+						SegmentName: segment.SegmentName,
+						Value:       segment.Value,
+						Segments:    segment.Segments,
+						Interval:    segment.Interval,
+						Start:       firstStart,
+						End:         firstEnd,
+					}
+
+					keys[combinedKey] = append(keys[combinedKey], newMetric)
+				}
+				// Push the children of the current segment onto the stack
+				stack = append(stack, segment.Segments...)
+			}
+		} else {
+			// this means we got a segment which is the actual metric
+			// it wont have start and end time so we need to use the parents values or the first metric values
+			if dimensionKey != "" {
+				// Directly add the metric if it has no segments
+				metric.Start, metric.End = firstStart, firstEnd
+				keys[dimensionKey] = append(keys[dimensionKey], metric)
+			}
+		}
 	}
-	for _, met := range metric.Segments {
-		values = append(values, getValue(met)...)
-	}
-	return values
+
+	return keys
 }
 
-func createSegEvent(parentMetricValue MetricValue, metricValue MetricValue, applicationId string, namespace string) mb.Event {
-	metricList := mapstr.M{}
-	for key, metric := range metricValue.Value {
-		metricList.Put(key, metric)
+// getSortedKeys returns a string of sorted keys.
+// The keys are sorted in alphabetical order.
+// This is needed to not have multiple keys for the same dimension.
+func getSortedKeys(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for k, v := range m {
+		keys = append(keys, k+v)
 	}
+	sort.Strings(keys)
+
+	return strings.Join(keys, "")
+}
+
+func createDimensionKey(startTime, endTime int64, sortedSegments string) string {
+	return fmt.Sprintf("%d_%d_%s", startTime, endTime, sortedSegments)
+}
+
+func createGroupEvent(metricValue []MetricValue, metricTime metricTimeKey, applicationId, namespace string) mb.Event {
+	if metricTime.Start.IsZero() || metricTime.End.IsZero() {
+		return mb.Event{}
+	}
+
+	metricList := mapstr.M{}
+
+	for _, v := range metricValue {
+		for key, metric := range v.Value {
+			_, _ = metricList.Put(key, metric)
+		}
+	}
+
 	if len(metricList) == 0 {
 		return mb.Event{}
 	}
-	event := createEvent(parentMetricValue.Start, parentMetricValue.End, applicationId, namespace, metricList)
-	if len(parentMetricValue.SegmentName) > 0 {
-		event.ModuleFields.Put("dimensions", parentMetricValue.SegmentName)
+
+	event := mb.Event{
+		ModuleFields: mapstr.M{"application_id": applicationId},
+		MetricSetFields: mapstr.M{
+			"start_date": metricTime.Start,
+			"end_date":   metricTime.End,
+		},
+		Timestamp: metricTime.End,
 	}
-	if len(metricValue.SegmentName) > 0 {
-		event.ModuleFields.Put("dimensions", metricValue.SegmentName)
+
+	event.RootFields = mapstr.M{}
+	_, _ = event.RootFields.Put("cloud.provider", "azure")
+
+	segments := make(map[string]string)
+
+	for _, v := range metricValue {
+		for sn, sv := range v.SegmentName {
+			segments[sn] = sv
+		}
 	}
+
+	if len(segments) > 0 {
+		_, _ = event.ModuleFields.Put("dimensions", segments)
+	}
+
+	if namespace == "" {
+		_, _ = event.ModuleFields.Put("metrics", metricList)
+	} else {
+		for key, metric := range metricList {
+			_, _ = event.MetricSetFields.Put(key, metric)
+		}
+	}
+
 	return event
 }
 
@@ -219,9 +330,9 @@ func createNoSegEvent(values []MetricValue, applicationId string, namespace stri
 func getAdditionalPropMetric(addProp map[string]interface{}) map[string]interface{} {
 	metricNames := make(map[string]interface{})
 	for key, val := range addProp {
-		switch val.(type) {
+		switch v := val.(type) {
 		case map[string]interface{}:
-			for subKey, subVal := range val.(map[string]interface{}) {
+			for subKey, subVal := range v {
 				if subVal != nil {
 					metricNames[cleanMetricNames(fmt.Sprintf("%s.%s", key, subKey))] = subVal
 				}
