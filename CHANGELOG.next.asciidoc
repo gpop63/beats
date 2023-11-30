@@ -67,6 +67,7 @@ https://github.com/elastic/beats/compare/v8.8.1\...main[Check the HEAD diff]
 *Auditbeat*
 
 - Fix documentation regarding socket type selection. {issue}37174[37174] {pull}37175[37175]
+- Fix guess trigger for system/socket creds on newer kernels. {issue}36905[36905] {pull}37136[37136]
 
 *Filebeat*
 
@@ -120,6 +121,8 @@ https://github.com/elastic/beats/compare/v8.8.1\...main[Check the HEAD diff]
 - Fix CPU and memory metrics collection from privileged process on Windows {issue}17314[17314]{pull}37027[37027]
 - Enhanced Azure Metrics metricset with refined grouping logic and resolved duplication issues for TSDB compatibility {pull}36823[36823]
 - Fix memory leak on Windows {issue}37142[37142] {pull}37171[37171]
+- Fix unintended skip in metric collection on Azure Monitor {issue}37204[37204] {pull}37203[37203]
+- Fix the "api-version query parameter (?api-version=) is required for all requests" error in Azure Billing. {pull}37158[37158]
 
 *Osquerybeat*
 
@@ -219,6 +222,7 @@ Setting environmental variable ELASTIC_NETINFO:false in Elastic Agent pod will d
 - Made GCS input GA and updated docs accordingly. {pull}37127[37127]
 - Suppress and log max HTTP request retry errors in CEL input. {pull}37160[37160]
 - Prevent CEL input from re-entering the eval loop when an evaluation failed. {pull}37161[37161]
+- Update CEL extensions library to v1.7.0. {pull}37172[37172]
 
 *Auditbeat*
 
