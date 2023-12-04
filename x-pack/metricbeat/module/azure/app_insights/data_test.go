@@ -76,107 +76,6 @@ func newMetricsTest(ts ...*date.Time) []MetricValue {
 	return mv
 }
 
-/*
-func newMetricsTest(
-	timestamp1 *date.Time,
-	timestamp2 *date.Time,
-	timestamp3 *date.Time,
-) []MetricValue {
-	return []MetricValue{
-		{
-			SegmentName: map[string]string{},
-			Value:       map[string]interface{}{},
-			Segments: []MetricValue{
-				{
-					SegmentName: map[string]string{},
-					Value:       map[string]interface{}{},
-					Segments: []MetricValue{
-						{
-							SegmentName: map[string]string{
-								"request_url_host": "",
-							},
-							Value: map[string]interface{}{
-								"users_count.unique": 44,
-							},
-							Segments: nil,
-							Interval: "",
-							Start:    nil,
-							End:      nil,
-						},
-					},
-					Interval: "",
-					Start:    nil,
-					End:      nil,
-				},
-			},
-			Interval: "P152D",
-			Start:    timestamp1,
-			End:      timestamp1,
-		},
-		{
-			SegmentName: map[string]string{},
-			Value:       map[string]interface{}{},
-			Segments: []MetricValue{
-				{
-					SegmentName: map[string]string{},
-					Value:       map[string]interface{}{},
-					Segments: []MetricValue{
-						{
-							SegmentName: map[string]string{
-								"request_url_host": "",
-							},
-							Value: map[string]interface{}{
-								"sessions_count.unique": 44,
-							},
-							Segments: nil,
-							Interval: "",
-							Start:    nil,
-							End:      nil,
-						},
-					},
-					Interval: "",
-					Start:    nil,
-					End:      nil,
-				},
-			},
-			Interval: "P5M",
-			Start:    timestamp2,
-			End:      timestamp2,
-		},
-		{
-			SegmentName: map[string]string{},
-			Value:       map[string]interface{}{},
-			Segments: []MetricValue{
-				{
-					SegmentName: map[string]string{},
-					Value:       map[string]interface{}{},
-					Segments: []MetricValue{
-						{
-							SegmentName: map[string]string{
-								"request_url_host": "localhost",
-							},
-							Value: map[string]interface{}{
-								"sessions_count.unique": 44,
-							},
-							Segments: nil,
-							Interval: "",
-							Start:    nil,
-							End:      nil,
-						},
-					},
-					Interval: "",
-					Start:    nil,
-					End:      nil,
-				},
-			},
-			Interval: "P5M",
-			Start:    timestamp3,
-			End:      timestamp3,
-		},
-	}
-}
-*/
-
 func TestGroupMetrics(t *testing.T) {
 	t.Run("two dimensions groups with same timestamps", func(t *testing.T) {
 		timestamp1 := &date.Time{Time: time.Now()}
@@ -225,8 +124,6 @@ func TestGroupMetrics(t *testing.T) {
 		assert.Len(t, groupedByDimensions, 2)
 
 		k1 := fmt.Sprintf("%d_%d_%s", timestamp1.Unix(), timestamp1.Unix(), "request_url_host")
-
-		fmt.Println(groupedByDimensions, k1)
 
 		dimensionsGroup1, ok := groupedByDimensions[k1]
 		assert.True(t, ok)
