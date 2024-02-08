@@ -1,0 +1,75 @@
+{
+    "@timestamp": "2024-01-26T20:41:58.379Z",
+    "host": {
+        "id": "d38ab9a7ff1643aaac5d76f7566c27cb",
+        "containerized": false,
+        "name": "gab-ms-7c95",
+        "ip": [
+            "192.168.1.3",
+            "2a02:2f08:2711:8300:2ef0:5dff:fee1:98be",
+            "fe80::2ef0:5dff:fee1:98be",
+            "172.17.0.1",
+            "172.18.0.1",
+            "fe80::42:56ff:fefb:9799",
+            "fe80::3c8a:b3ff:fe99:361e",
+            "fe80::94ee:6ff:fe47:de99",
+            "fe80::ec5e:dcff:fe47:24fc",
+            "fe80::503e:f5ff:fe4d:7308",
+            "fe80::f4b5:f4ff:fe37:2c5"
+        ],
+        "mac": [
+            "02-42-4A-3F-7B-3A",
+            "02-42-56-FB-97-99",
+            "2C-F0-5D-E1-98-BE",
+            "3E-8A-B3-99-36-1E",
+            "52-3E-F5-4D-73-08",
+            "96-EE-06-47-DE-99",
+            "EE-5E-DC-47-24-FC",
+            "F6-B5-F4-37-02-C5"
+        ],
+        "hostname": "gab-ms-7c95",
+        "architecture": "x86_64",
+        "os": {
+            "type": "linux",
+            "platform": "ubuntu",
+            "version": "22.04.3 LTS (Jammy Jellyfish)",
+            "family": "debian",
+            "name": "Ubuntu",
+            "kernel": "6.5.0-15-generic",
+            "codename": "jammy"
+        }
+    },
+    "agent": {
+        "name": "gab-MS-7C95",
+        "type": "metricbeat",
+        "version": "8.13.0",
+        "ephemeral_id": "4e5b8aeb-bac7-4496-a420-505fd19ab656",
+        "id": "a7e4175b-5339-4821-ac1a-412ea33518b5"
+    },
+    "metricset": {
+        "period": 86400000,
+        "name": "billingv2"
+    },
+    "service": {
+        "type": "aws"
+    },
+    "aws": {
+        "billingv2": {
+            "UsageAccountName": "elastic-observability",
+            "ProductServiceCode": "AmazonEC2",
+            "IdentityTimeInterval": "2024-01-20T00:00:00Z/2024-01-21T00:00:00Z",
+            "TagKey": "user_team",
+            "TagValue": "obs-ux-infra_services",
+            "UnblendedCost": 0.3,
+            "UsageAccountID": "627286350134"
+        }
+    },
+    "event": {
+        "dataset": "aws.billingv2",
+        "module": "aws",
+        "duration": 7115472411
+    },
+    "ecs": {
+        "version": "8.0.0"
+    }
+}
