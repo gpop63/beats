@@ -6,14 +6,20 @@ package query
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/jmoiron/sqlx"
 
 	"github.com/elastic/beats/v7/metricbeat/helper/sql"
 	"github.com/elastic/beats/v7/metricbeat/mb"
 	"github.com/elastic/elastic-agent-libs/mapstr"
+	"github.com/elastic/elastic-agent-libs/transport/tlscommon"
 )
 
 // represents the response format of the query
@@ -53,7 +59,9 @@ type config struct {
 
 	// Support fetch response for given queries from all databases.
 	// NOTE: Currently, mssql driver only respects FetchFromAllDatabases.
-	FetchFromAllDatabases bool `config:"fetch_from_all_databases"`
+	FetchFromAllDatabases bool              `config:"fetch_from_all_databases"`
+	TLS                   *tlscommon.Config `config:"ssl"`
+	TLSConfig             *tls.Config
 }
 
 // MetricSet holds any configuration or state information. It must implement
@@ -79,6 +87,15 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 	if err := base.Module().UnpackConfig(&b.Config); err != nil {
 		return nil, fmt.Errorf("unpack config failed: %w", err)
+	}
+
+	if b.Config.TLS.IsEnabled() {
+		tlsConfig, err := tlscommon.LoadTLSConfig(b.Config.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("could not load provided TLS configuration: %w", err)
+		}
+
+		b.Config.TLSConfig = tlsConfig.ToConfig()
 	}
 
 	if b.Config.ResponseFormat != "" {
@@ -203,6 +220,94 @@ func (m *MetricSet) fetch(ctx context.Context, db *sql.DbClient, reporter mb.Rep
 	}
 
 	return ok, nil
+}
+
+func appendSSLToDSN(driver, dsn string, tlsConfig *tls.Config) (string, error) {
+	if len(tlsConfig.Certificates) == 0 {
+		return "", errors.New("missing certificates")
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsConfig.Certificates[0].Certificate[0],
+	})
+
+	var keyPEM []byte
+	switch key := tlsConfig.Certificates[0].PrivateKey.(type) {
+	case *rsa.PrivateKey:
+		keyPEM = pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		})
+	// Add cases for other types of keys here
+	default:
+		return "", errors.New("unsupported private key type")
+	}
+
+	rootCertPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: tlsConfig.RootCAs.Subjects()[0],
+	})
+
+	params := getParams(driver, certPEM, keyPEM, rootCertPEM)
+
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", err
+	}
+
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return "", err
+	}
+
+	for k, v := range params {
+		query.Set(k, v)
+	}
+
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
+func getParams(driver string, certPEM, keyPEM, rootCertPEM []byte) map[string]string {
+	switch driver {
+	case "postgres", "cockroachdb":
+		return map[string]string{
+			"sslmode":     "verify-full",
+			"sslcert":     string(certPEM),
+			"sslkey":      string(keyPEM),
+			"sslrootcert": string(rootCertPEM),
+		}
+
+	case "mysql":
+		return map[string]string{
+			"tls":                    "custom",
+			"ssl-cert":               string(certPEM),
+			"ssl-key":                string(keyPEM),
+			"ssl-ca":                 string(rootCertPEM),
+			"ssl-verify-server-cert": "true",
+		}
+
+	case "sqlserver":
+		return map[string]string{
+			"encrypt":                "true",
+			"certificate":            string(certPEM),
+			"privateKey":             string(keyPEM),
+			"trustServerCertificate": "true",
+		}
+
+	case "oracle":
+		return map[string]string{
+			"ssl":        "enable",
+			"ssl_cert":   string(certPEM),
+			"ssl_key":    string(keyPEM),
+			"ssl_ca":     string(rootCertPEM),
+			"ssl_verify": "true",
+		}
+
+	default:
+		return nil
+	}
 }
 
 // Fetch method implements the data gathering and data conversion to the right
