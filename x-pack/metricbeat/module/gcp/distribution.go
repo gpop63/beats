@@ -71,26 +71,22 @@ func DistributionHistogramToES(d *distribution.Distribution) mapstr.M {
 	switch {
 	case d.BucketOptions.GetExplicitBuckets() != nil:
 		bucket := d.BucketOptions.GetExplicitBuckets()
-
-		for i := range d.BucketCounts {
-			values = append(values, calcExplicitUpperBound(bucket, i))
+		for i, bound := range bucket.Bounds {
+			values = append(values, bound)
+			counts = append(counts, uint64(d.BucketCounts[i]))
 		}
 	case d.BucketOptions.GetExponentialBuckets() != nil:
 		bucket := d.BucketOptions.GetExponentialBuckets()
-
-		for i := range d.BucketCounts {
-			values = append(values, calcExponentialUpperBound(bucket, i+1))
+		for i := 0; i < int(bucket.NumFiniteBuckets); i++ {
+			values = append(values, calcExponentialUpperBound(bucket, i))
+			counts = append(counts, uint64(d.BucketCounts[i]))
 		}
 	case d.BucketOptions.GetLinearBuckets() != nil:
 		bucket := d.BucketOptions.GetLinearBuckets()
-
-		for i := range d.BucketCounts {
-			values = append(values, calcLinearUpperBound(bucket, i+1))
+		for i := 0; i < int(bucket.NumFiniteBuckets); i++ {
+			values = append(values, calcLinearUpperBound(bucket, i))
+			counts = append(counts, uint64(d.BucketCounts[i]))
 		}
-	}
-
-	for i := range d.BucketCounts {
-		counts = append(counts, uint64(d.BucketCounts[i]))
 	}
 
 	return createHistogram(values, counts)
